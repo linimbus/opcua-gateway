@@ -1,0 +1,18 @@
+{
+    "files.associations": {
+        "*.ndjson": "jsonl",
+        "*.dbclient-js": "javascript",
+        "open62541.h": "c",
+        "open62541_cgo.h": "c"
+    },
+    "go.useLanguageServer": true,
+    "go.vetFlags": [
+        "-unsafeptr=false"
+    ],
+    "gopls": {
+        "analyses": {
+            "unsafeptr": false
+        }
+    },
+    "editor.formatOnSave": true
+}
