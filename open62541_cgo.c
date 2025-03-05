@@ -112,9 +112,12 @@ UA_Double UA_VariantValueDouble(UA_Variant *value, int index) {
   return valueData[index];
 }
 
-UA_String UA_VariantValueString(UA_Variant *value, int index) {
+void UA_VariantValueString(UA_Variant *value, int index, UA_String *data) {
   UA_String *valueData = (UA_String *)value->data;
-  return valueData[index];
+  *data = valueData[index];
+  if (data->length == 0) {
+    data->data = NULL;
+  }
 }
 
 UA_DateTime UA_VariantValueDateTime(UA_Variant *value, int index) {
@@ -122,9 +125,13 @@ UA_DateTime UA_VariantValueDateTime(UA_Variant *value, int index) {
   return valueData[index];
 }
 
-UA_ByteString UA_VariantValueByteString(UA_Variant *value, int index) {
+void UA_VariantValueByteString(UA_Variant *value, int index,
+                               UA_ByteString *data) {
   UA_ByteString *valueData = (UA_ByteString *)value->data;
-  return valueData[index];
+  *data = valueData[index];
+  if (data->length == 0) {
+    data->data = NULL;
+  }
 }
 
 UA_StatusCode UA_VariantScalarValueBoolean(UA_Variant *variant,

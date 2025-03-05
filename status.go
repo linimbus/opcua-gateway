@@ -18,7 +18,7 @@ func StatusBarInit() []StatusBarItem {
 	return []StatusBarItem{
 		{
 			Icon:  ICON_Status,
-			Text:  "Configuration Files:",
+			Text:  "Configuration Files",
 			Width: 160,
 		},
 		{

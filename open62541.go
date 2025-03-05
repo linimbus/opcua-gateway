@@ -178,6 +178,7 @@ func (v *NodeValue) Clone() *NodeValue {
 			value.Value = ByteClone(v.Value.([]byte))
 		}
 	default:
+		logs.Error("NodeValue clone failed, unsupported type %v", v.Type)
 		return nil
 	}
 	return value
@@ -259,6 +260,7 @@ func (v *NodeValue) Compare(b *NodeValue) bool {
 		}
 		return bytes.Equal(v.Value.([]byte), b.Value.([]byte))
 	default:
+		logs.Error("NodeValue compare failed, unsupported type %v", v.Type)
 		return false
 	}
 }
@@ -336,6 +338,7 @@ func (v *NodeValue) ToString() string {
 		}
 		return base64.StdEncoding.EncodeToString(v.Value.([]byte))
 	default:
+		logs.Error("NodeValue toString failed, unsupported type %v", v.Type)
 		return ""
 	}
 }
@@ -765,9 +768,10 @@ func UA_VariantToArrayValue(variant *C.UA_Variant) (*NodeValue, error) {
 		}
 	case C.UA_TYPES_STRING:
 		{
+			var cString C.UA_String
 			arrayList := make([]string, length)
 			for i := 0; i < int(length); i++ {
-				cString := C.UA_VariantValueString(variant, C.int(i))
+				C.UA_VariantValueString(variant, C.int(i), &cString)
 				goBytes := C.GoBytes(unsafe.Pointer(cString.data), C.int(cString.length))
 				arrayList[i] = string(goBytes)
 			}
@@ -776,9 +780,10 @@ func UA_VariantToArrayValue(variant *C.UA_Variant) (*NodeValue, error) {
 		}
 	case C.UA_TYPES_BYTESTRING:
 		{
+			var cString C.UA_ByteString
 			arrayList := make([][]byte, length)
 			for i := 0; i < int(length); i++ {
-				cString := C.UA_VariantValueByteString(variant, C.int(i))
+				C.UA_VariantValueByteString(variant, C.int(i), &cString)
 				goBytes := C.GoBytes(unsafe.Pointer(cString.data), C.int(cString.length))
 				arrayList[i] = goBytes
 			}
@@ -839,11 +844,13 @@ func UA_VariantToSingleValue(variant *C.UA_Variant) (*NodeValue, error) {
 		value = float64(C.UA_VariantValueDouble(variant, 0))
 		valueType = UA_DOUBLE
 	case C.UA_TYPES_STRING:
-		cString := C.UA_VariantValueString(variant, 0)
+		var cString C.UA_String
+		C.UA_VariantValueString(variant, 0, &cString)
 		value = string(C.GoBytes(unsafe.Pointer(cString.data), C.int(cString.length)))
 		valueType = UA_STRING
 	case C.UA_TYPES_BYTESTRING:
-		cString := C.UA_VariantValueByteString(variant, 0)
+		var cString C.UA_ByteString
+		C.UA_VariantValueByteString(variant, 0, &cString)
 		value = C.GoBytes(unsafe.Pointer(cString.data), C.int(cString.length))
 		valueType = UA_BYTESTRING
 	default:
@@ -1196,7 +1203,24 @@ func (c *Client) Close() {
 	C.UA_Client_delete(client)
 }
 
-func (c *Client) CheckState() {
+func (c *Client) Connect() error {
+	client := (*C.UA_Client)(unsafe.Pointer(c.cli))
+
+	C.UA_Client_disconnect(client)
+
+	cStr := C.CString(c.addr)
+	defer C.free(unsafe.Pointer(cStr))
+
+	retval := C.UA_Client_connect(client, cStr)
+	if retval != C.UA_STATUSCODE_GOOD {
+		err := fmt.Errorf("ua client reconnect failed, retval = 0x%x", uint32(retval))
+		logs.Warning(err.Error())
+		return err
+	}
+	return nil
+}
+
+func (c *Client) CheckState() bool {
 	client := (*C.UA_Client)(unsafe.Pointer(c.cli))
 
 	var retval C.UA_StatusCode
@@ -1204,17 +1228,9 @@ func (c *Client) CheckState() {
 	C.UA_Client_getState(client, &channelStatus, nil, &retval)
 	if retval != C.UA_STATUSCODE_GOOD || channelStatus == C.UA_SECURECHANNELSTATE_CLOSED {
 		logs.Error("ua client get connect status %d, channel status %d to reconnect", uint32(retval), uint32(channelStatus))
-
-		C.UA_Client_disconnect(client)
-
-		cStr := C.CString(c.addr)
-		defer C.free(unsafe.Pointer(cStr))
-
-		retval := C.UA_Client_connect(client, cStr)
-		if retval != C.UA_STATUSCODE_GOOD {
-			logs.Warning("ua client reconnect failed, retval = 0x%x", uint32(retval))
-		}
+		return false
 	}
+	return true
 }
 
 func (c *Client) ReadNode(node NodeInfo) (*NodeValue, error) {
@@ -1255,16 +1271,21 @@ func (c *Client) ReadNodes(nodes []NodeInfo) ([]*NodeValue, error) {
 		}
 	}()
 
+	client := (*C.UA_Client)(unsafe.Pointer(c.cli))
+
 	var request C.UA_ReadRequest
 	C.UA_ReadRequest_init(&request)
 
 	request.nodesToReadSize = C.size_t(len(nodes))
 	request.nodesToRead = cReadValueIDs
 
-	response := C.UA_Client_Service_read((*C.UA_Client)(unsafe.Pointer(c.cli)), request)
+	response := C.UA_Client_Service_read(client, request)
 	defer C.UA_ReadResponse_clear(&response)
 
 	if C.UA_STATUSCODE_GOOD != response.responseHeader.serviceResult {
+		if C.UA_STATUSCODE_BADCONNECTIONCLOSED == response.responseHeader.serviceResult {
+			C.UA_Client_disconnect(client)
+		}
 		return nil, fmt.Errorf("ua client read nodes failed, retval = 0x%x", uint32(response.responseHeader.serviceResult))
 	}
 

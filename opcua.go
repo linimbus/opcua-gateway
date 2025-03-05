@@ -146,13 +146,19 @@ func (opc *OpcuaServer) serverTask() {
 	logs.Info("server sync data task shutdown")
 }
 
-func (opc *OpcuaServer) clientValue(query NodeInfo, nodes []NodeInfo, values []*NodeValue) *NodeValue {
-	for i := 0; i < len(nodes); i++ {
-		if query.Compare(nodes[i]) {
-			return values[i].Clone()
+func (opc *OpcuaServer) ReadNodesRetry(cli *Client, name string, nodes []NodeInfo) []*NodeValue {
+	for i := 0; i < 10; i++ {
+		nodeValues, err := cli.ReadNodes(nodes)
+		if err == nil {
+			return nodeValues
+		}
+		logs.Error("opcua client %s read nodes failed, %s", name, err.Error())
+
+		if !cli.CheckState() {
+			cli.Connect()
 		}
 	}
-	logs.Error("opcua client query node %s value not exist", query.ToString())
+
 	return nil
 }
 
@@ -184,10 +190,8 @@ func (opc *OpcuaServer) clientTask(cli *Client, name string) {
 			continue
 		}
 
-		nodeValues, err := cli.ReadNodes(nodeList)
-		if err != nil {
-			logs.Error("opcua client read nodes failed, %s", err.Error())
-			cli.CheckState()
+		nodeValues := opc.ReadNodesRetry(cli, name, nodeList)
+		if nodeValues == nil {
 			atomic.AddUint64(&stat.OperFail, 1)
 			continue
 		}

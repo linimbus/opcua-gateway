@@ -461,7 +461,7 @@ func CreateWindow() {
 		Icon:           ICON_Main,
 		AssignTo:       &mainWindow,
 		MinSize:        Size{Width: 600, Height: 300},
-		Size:           Size{Width: 600, Height: 300},
+		Size:           Size{Width: 650, Height: 350},
 		Layout:         VBox{},
 		Font:           DefaultFont(),
 		MenuItems:      MenuBarInit(),

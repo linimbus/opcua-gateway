@@ -42,11 +42,13 @@ extern UA_Float UA_VariantValueFloat(UA_Variant *value, int index);
 
 extern UA_Double UA_VariantValueDouble(UA_Variant *value, int index);
 
-extern UA_String UA_VariantValueString(UA_Variant *value, int index);
+extern void UA_VariantValueString(UA_Variant *value, int index,
+                                  UA_String *data);
 
 extern UA_DateTime UA_VariantValueDateTime(UA_Variant *value, int index);
 
-extern UA_ByteString UA_VariantValueByteString(UA_Variant *value, int index);
+extern void UA_VariantValueByteString(UA_Variant *value, int index,
+                                      UA_ByteString *data);
 //
 
 extern UA_StatusCode UA_VariantScalarValueBoolean(UA_Variant *variant,

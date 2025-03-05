@@ -16,7 +16,7 @@ import (
 )
 
 func VersionGet() string {
-	return "v1.0.0"
+	return "v1.1.0"
 }
 
 func AppNameGet() string {
